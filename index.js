@@ -8,7 +8,8 @@ const fetch = require('node-fetch')
 const isBase64 = require('is-base64')
 const waitForLocalhost = require('wait-for-localhost')
 const AdmZip = require('adm-zip')
- 
+const URL = require('url').URL;
+
 // used to store proxy process configuration between requests
 const CONFIG = {
   app: null,
@@ -25,17 +26,17 @@ const CONFIG = {
 }
 
 // decode web action request bodys into byte buffer
-// binary content is encoded as base64 
+// binary content is encoded as base64
 const decode_body = raw_body => {
   const mime = isBase64(raw_body) ? 'base64' : 'utf-8'
   return Buffer.from(raw_body, mime)
 }
 
 // only HTTP GETs and HEADs support a request body
-const can_have_body = method => { 
+const can_have_body = method => {
   return method !== 'get' && method !=='head'
 }
- 
+
 // does mime type refer to binary content?
 // copied from same list openwhisk uses to handle encoding binary content
 // https://doc.akka.io/api/akka-http/10.0.4/akka/http/scaladsl/model/MediaTypes$.html
@@ -112,7 +113,7 @@ const wait_for_app_server = async () => {
     }
 
     console.log('PROXY waiting for HTTP service on port to be available:', CONFIG.proxy.port)
-    const serving_requests = waitForLocalhost({port: CONFIG.proxy.port, path: CONFIG.proxy.alive_path, delay: CONFIG.proxy.alive_delay}) 
+    const serving_requests = waitForLocalhost({port: CONFIG.proxy.port, path: CONFIG.proxy.alive_path, delay: CONFIG.proxy.alive_delay})
     serving_requests.then(() => console.log('PROXY HTTP service is now available...'))
 
     checks.push(serving_requests)
@@ -121,7 +122,7 @@ const wait_for_app_server = async () => {
   // wait for app server to start responding to http requests or process to die.
   // if the result is a null value, it came from the `waitForLocalhost` function.
   // this means the app server is responding to http requests.
-  // if the result is a non-null value, it came from the  `spawn_user_app` function. 
+  // if the result is a non-null value, it came from the  `spawn_user_app` function.
   // this means the process has died and can't serve HTTP requests.
   const check_results = await Promise.race(CONFIG.app_server_checks)
   if (check_results) {
@@ -132,7 +133,7 @@ const wait_for_app_server = async () => {
 const app = express()
 app.use(express.json({limit: '48MB'}))
 
-// the /init endpoint is used to dynamically inject function code into the runtime. 
+// the /init endpoint is used to dynamically inject function code into the runtime.
 // if params contain a binary archive, unzip into runtime environment
 // otherwise, assume app server process already started in container and return.
 app.post('/init', (req, res) => {
@@ -140,16 +141,36 @@ app.post('/init', (req, res) => {
   console.log('PROXY /init main:', params.main, 'binary:', params.binary)
 
   if (params.binary) {
-    const dir = path.join(process.env.PWD, 'src')
+    // const dir = path.join(process.env.PWD, 'src')
+    // const dir = path.join('/app/', 'src')
+    const dir = "/app"
     const base64 = Buffer.from(params.code, 'base64')
     console.time('PROXY unzipping binary archive elapsed time')
-    const zip = new AdmZip(base64)
-    zip.extractAllTo(dir, true)
+    // const zip = new AdmZip(base64)
+    // zip.extractAllTo(dir, true)
+    fs.writeFileSync("application.jar", base64);
     console.timeEnd('PROXY unzipping binary archive elapsed time')
+    console.log('PROXY process.env.PWD:' + process.env.PWD)
+    let fsLs = "";
+    //
+    // fsLs = "";
+    // fs.readdirSync(new URL('file:///')).forEach(file => {
+    //   fsLs += file += " "
+    // });
+    // console.log('PROXY ', fsLs);
 
-    const main = params.main.split(' ')
-    const cmd = main[0]
-    const args = main.slice(1)
+    fsLs = "";
+    fs.readdirSync(new URL('file:///app/')).forEach(file => {
+      fsLs += file += " "
+    });
+    console.log('PROXY ', fsLs);
+
+    // const main = params.main.split(' ')
+    const cmd = process.env.APP_SERVER_CMD;
+    const args = []
+    console.log('cmd', cmd)
+    console.log('args', args)
+    console.log('dir', dir)
     CONFIG.app = { dir, cmd, args }
   }
 
