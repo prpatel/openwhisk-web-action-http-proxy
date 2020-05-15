@@ -18,8 +18,8 @@ const CONFIG = {
   // defaults to: http://localhost:80/
   proxy: {
     host: process.env['PROXY_HOST'] || 'localhost',
-    port: process.env['PROXY_PORT'] || 80,
-    alive_path: process.env['PROXY_ALIVE_PATH'] || '/',
+    port: process.env['PROXY_PORT'] || 8081,
+    alive_path: process.env['PROXY_ALIVE_PATH'] || '/health_check',
     alive_delay: process.env['PROXY_ALIVE_DELAY'] || 100,
     protocol: process.env['PROXY_PROTOCOL'] || 'http'
   }
@@ -196,14 +196,16 @@ app.post('/run', async (req, res, next) => {
   Object.keys(params)
     .filter(p => p.startsWith(env_prefix))
     .forEach(p => process.env[p.slice(env_prefix.length)] = params[p])
-  if (DEBUG) console.log('PROXY process.env:', process.env)
+  // if (DEBUG) console.log('PROXY process.env:', process.env)
 
+  const methodType = params['__ow_method'] || 'POST'
   const options = {
-    method: params['__ow_method'], headers: params['__ow_headers']
+    method: methodType, headers: params['__ow_headers']
   }
-
+  if (DEBUG) console.log('PROXY options:', options)
   // leaving the host header seems to break some examples...
-  delete options.headers.host
+
+  if (options.headers) delete options.headers.host
 
   if (can_have_body(options.method) && params['__ow_body']) {
     options.body = decode_body(params['__ow_body'])
@@ -214,7 +216,13 @@ app.post('/run', async (req, res, next) => {
     await wait_for_app_server()
 
     const host = `${CONFIG.proxy.protocol}://${CONFIG.proxy.host}:${CONFIG.proxy.port}`
-    const url = new URL(params['__ow_path'], host)
+
+    if (DEBUG) console.log('PROXY __ow_path', params['__ow_path'])
+    let url = new URL("/", host)
+    if (params['__ow_path']) {
+      let url = new URL(params['__ow_path'], host)
+    }
+
     url.search = params['__ow_query'] || ''
 
     if (DEBUG) console.log('PROXY outgoing HTTP request:', url, options)
