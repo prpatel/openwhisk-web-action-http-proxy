@@ -220,7 +220,7 @@ app.post('/run', async (req, res, next) => {
     if (DEBUG) console.log('PROXY __ow_path', params['__ow_path'])
     let url = new URL("/", host)
     if (params['__ow_path']) {
-      let url = new URL(params['__ow_path'], host)
+      url = new URL(params['__ow_path'], host)
     }
 
     url.search = params['__ow_query'] || ''
