@@ -211,6 +211,19 @@ app.post('/run', async (req, res, next) => {
     options.body = decode_body(params['__ow_body'])
   }
 
+  if (options.headers) {
+    // if we have HTTP headers this is a web invokation
+  } else {
+    // else its a trigger or command line execution
+    options.headers = {
+      "Content-Type" : "application/json"
+    }
+    options.body = JSON.stringify(params)
+  }
+
+  if (DEBUG) console.log('PROXY __ow_body', params['__ow_body'])
+  if (DEBUG) console.log('PROXY options.body', options.body)
+
   try {
     // wait for app server to be available before sending HTTP requests
     await wait_for_app_server()
